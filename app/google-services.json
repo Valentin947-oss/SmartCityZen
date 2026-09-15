@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "991781761885",
+    "project_id": "smart-cityzen-ea358",
+    "storage_bucket": "smart-cityzen-ea358.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:991781761885:android:8660d9e84a11f7d027eeb4",
+        "android_client_info": {
+          "package_name": "mk.smartcityzen.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9JKEtzdAu6lhTWn0omQJdH7RrJb0kcQA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
