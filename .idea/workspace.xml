@@ -36,7 +36,9 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d3eb7b8a-5a88-4e8d-89eb-69f7e6a7abe4" name="Changes" comment="15.09 posleden update" />
+    <list default="true" id="d3eb7b8a-5a88-4e8d-89eb-69f7e6a7abe4" name="Changes" comment="15.09 posleden updateee">
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/values/strings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/values/strings.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -212,7 +214,15 @@
       <option name="project" value="LOCAL" />
       <updated>1789476310016</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="15.09 posleden updateee">
+      <option name="closed" value="true" />
+      <created>1789476387388</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1789476387388</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -221,11 +231,38 @@
         <entry key="85e906cc-aebf-4ab8-983d-033835b7c1ab" value="TOOL_WINDOW" />
       </map>
     </option>
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="origin/master" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="TAB_STATES">
       <map>
         <entry key="85e906cc-aebf-4ab8-983d-033835b7c1ab">
           <value>
-            <State />
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/master" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
           </value>
         </entry>
         <entry key="MAIN">
@@ -238,7 +275,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="15.09 posleden update" />
-    <option name="LAST_COMMIT_MESSAGE" value="15.09 posleden update" />
+    <MESSAGE value="15.09 posleden updateee" />
+    <option name="LAST_COMMIT_MESSAGE" value="15.09 posleden updateee" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
