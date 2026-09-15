@@ -39,4 +39,5 @@
     <string name="mobility_profile">Мој тип на мобилност</string>
     <string name="help_title">Помош</string>
     <string name="last_verified_prefix">Последно верификувано</string>
+    <string name="cancel_route">Откажи ја рутата</string>
 </resources>

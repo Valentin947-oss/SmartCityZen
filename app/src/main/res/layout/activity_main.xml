@@ -40,6 +40,7 @@
             android:layout_height="40dp"
             android:background="@android:color/transparent"
             app:srcCompat="@drawable/ic_walking_person"
+            android:tint="#FFFFFF"
             android:scaleType="fitCenter"
             android:padding="6dp"
             android:contentDescription="@string/mobility_profile" />
@@ -136,6 +137,16 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/find_accessible_route" />
+
+        <ImageButton
+            android:id="@+id/btnCancelRoute"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            app:srcCompat="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="@string/cancel_route"
+            android:visibility="gone" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

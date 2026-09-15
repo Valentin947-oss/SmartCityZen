@@ -48,6 +48,16 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
 
+/**
+ * Smart CityZen — accessibility map & routing MVP.
+ *
+ * Report flow (FAB button): request CAMERA + location permission -> capture current
+ * GPS position -> open camera -> show report form pre-filled with that position and
+ * photo -> upload photo to Firebase Storage -> save the report to Firestore.
+ *
+ * Long-press on the map is a manual fallback (e.g. GPS unavailable indoors, or
+ * reporting a spot the citizen isn't physically standing at).
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -65,10 +75,12 @@ class MainActivity : AppCompatActivity() {
     private var startMarker: Marker? = null
     private var endMarker: Marker? = null
 
+    // ---- GPS + camera report flow state ----
     private var pendingPhotoUri: Uri? = null
     private var pendingGpsLat: Double? = null
     private var pendingGpsLng: Double? = null
 
+    // ---- live "follow me" navigation state ----
     private var lastRouteResult: RouteResult? = null
     private var isFollowing = false
     private var hasArrived = false
@@ -79,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private enum class TapMode { NONE, SET_START, SET_END, REPORT }
 
     companion object {
+        /** How close (in meters) counts as "arrived" for the arrival dialog to trigger. */
         private const val ARRIVAL_THRESHOLD_METERS = 25.0
     }
 
@@ -94,6 +107,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Separate, lighter-weight permission request just for the always-on "blue dot"
+     *  location indicator — doesn't need CAMERA like the report flow does. */
     private val requestLocationOnly = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) enableLiveLocation() }
@@ -104,6 +119,7 @@ class MainActivity : AppCompatActivity() {
         if (success && pendingPhotoUri != null) {
             openReportDialogWithPhoto()
         } else {
+            // photo cancelled — still let them report with just GPS position
             openReportDialogWithPhoto()
         }
     }
@@ -119,6 +135,8 @@ class MainActivity : AppCompatActivity() {
         observeViewModel()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+        // Always-on "where am I" blue dot, like Google Maps — independent of any
+        // active route. Requests location permission immediately if not already granted.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -128,6 +146,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** OSMDroid's built-in blue-dot-with-heading overlay, backed by the device's real
+     *  GPS provider — continuously tracks and redraws the citizen's position on the
+     *  map exactly like Google Maps does, with no extra polling code of our own.
+     *  Tinted to the citizen's saved mobility type so the color itself communicates
+     *  how they move (black=пешак, blue=количка, pink=бебе количка, teal=тротинет). */
     private fun enableLiveLocation() {
         myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), binding.mapView)
         applyLocationIconColor()
@@ -136,6 +159,8 @@ class MainActivity : AppCompatActivity() {
         binding.mapView.invalidate()
     }
 
+    /** Re-tints the location icon from the saved MobilityPrefs — called on startup and
+     *  again any time the citizen changes their mobility type in the profile dialog. */
     private fun applyLocationIconColor() {
         if (!this::myLocationOverlay.isInitialized) return
         val color = mk.smartcityzen.app.util.MobilityPrefs.colorFor(mk.smartcityzen.app.util.MobilityPrefs.get(this))
@@ -147,6 +172,9 @@ class MainActivity : AppCompatActivity() {
         binding.mapView.invalidate()
     }
 
+    /** Recolors a black-silhouette icon by swapping every opaque pixel for [color],
+     *  keeping the original alpha shape — used so one source icon can represent every
+     *  mobility type just by changing its tint. */
     private fun tintedBitmap(resId: Int, color: Int): android.graphics.Bitmap {
         val original = android.graphics.BitmapFactory.decodeResource(resources, resId)
         val result = android.graphics.Bitmap.createBitmap(original.width, original.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -158,6 +186,7 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
+    /** Static reference dialog explaining the map's colors and each mobility role. */
     private fun showHelpDialog() {
         val message = """
             🔴 Црвен pin — пријавена пречка (дупка, нема рампа...)
@@ -184,6 +213,8 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Lets the citizen pick their own way of moving through the city — saved once,
+     *  used to color the live location icon and pre-fill the mobility field on reports. */
     private fun showMobilityProfileDialog() {
         val types = mk.smartcityzen.app.model.MobilityType.values()
         val labels = types.map { it.label }.toTypedArray()
@@ -213,6 +244,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             override fun longPressHelper(p: GeoPoint): Boolean {
+                // manual fallback: report at a tapped point, no photo/GPS
                 showManualReportDialog(p.latitude, p.longitude)
                 return true
             }
@@ -275,11 +307,14 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnHelp.setOnClickListener { showHelpDialog() }
         binding.btnMobilityProfile.setOnClickListener { showMobilityProfileDialog() }
+        binding.btnCancelRoute.setOnClickListener { finishRoute() }
     }
 
+    /** "Моја моментална локација" option for point A — checks permission, gets a fresh
+     *  GPS fix, and sets it as the start point directly (no map tap needed). */
     private fun useCurrentLocationAsStart() {
         val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED
         if (!hasPermission) {
             requestLocationOnly.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             Toast.makeText(this, "Дозволи локација, потоа пробај повторно", Toast.LENGTH_LONG).show()
@@ -300,7 +335,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensurePermissionsThenAddInstitution() {
         val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED
         if (!locationGranted) {
             requestPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION))
             return
@@ -326,9 +361,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensurePermissionsThenReport() {
         val cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
-                PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED
         val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED
 
         if (cameraGranted && locationGranted) {
             startReportFlow()
@@ -339,6 +374,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Step 1: get the citizen's real GPS position, then launch the camera. */
     private fun startReportFlow() {
         Toast.makeText(this, getString(R.string.locating_gps), Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
@@ -357,6 +393,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Step 2: open the camera, saving the photo to a FileProvider-shared file. */
     private fun launchCamera() {
         val photosDir = File(cacheDir, "report_photos").apply { mkdirs() }
         val photoFile = File(photosDir, "report_${System.currentTimeMillis()}.jpg")
@@ -365,6 +402,7 @@ class MainActivity : AppCompatActivity() {
         takePhoto.launch(uri)
     }
 
+    /** Step 3: show the report form with GPS position + captured photo pre-filled. */
     private fun openReportDialogWithPhoto() {
         val lat = pendingGpsLat ?: return
         val lng = pendingGpsLng ?: return
@@ -376,6 +414,7 @@ class MainActivity : AppCompatActivity() {
         ) { pending -> submitPendingReport(pending, lat, lng, pendingPhotoUri) }
     }
 
+    /** Manual fallback report (long-press on map) — no GPS auto-capture, no photo. */
     private fun showManualReportDialog(lat: Double, lng: Double) {
         ReportObstacleDialog.show(
             context = this,
@@ -412,7 +451,7 @@ class MainActivity : AppCompatActivity() {
                 refreshEndpointMarkers()
                 binding.instructionsText.text = getString(R.string.instructions_ready)
             }
-            else -> { }
+            else -> { /* stray taps ignored — reporting now goes through the FAB/long-press flows */ }
         }
         pendingTapMode = TapMode.NONE
     }
@@ -437,6 +476,11 @@ class MainActivity : AppCompatActivity() {
             }
             binding.mapView.overlays.add(endMarker)
         }
+        binding.btnCancelRoute.visibility = if (startPoint != null || endPoint != null) {
+            android.view.View.VISIBLE
+        } else {
+            android.view.View.GONE
+        }
         binding.mapView.invalidate()
     }
 
@@ -448,6 +492,9 @@ class MainActivity : AppCompatActivity() {
                     is GraphState.Ready -> getString(R.string.instructions_pick_start)
                     is GraphState.Error -> state.message
                 }
+                // Disable the route button until the network is actually ready — this
+                // is what stops the "Мрежата сеуште не е вчитана" message from ever
+                // appearing, instead of just showing it after the fact.
                 binding.btnFindRoute.isEnabled = state is GraphState.Ready
             }
         }
@@ -479,6 +526,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Persistent bottom card — replaces the disappearing toast. Shows total distance
+     *  and, once "Следи ме" is active, the live remaining distance as the citizen walks. */
     private fun showRouteInfoCard(result: RouteResult, liveRemainingMeters: Double?) {
         binding.routeInfoCard.visibility = android.view.View.VISIBLE
         val totalKm = "%.2f".format(result.totalDistanceMeters / 1000.0)
@@ -503,7 +552,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED
         if (!hasPermission) {
             requestPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION))
             return
@@ -521,8 +570,12 @@ class MainActivity : AppCompatActivity() {
                     remainingDistanceAlongRoute(loc.latitude, loc.longitude, it)
                 } ?: 0.0
                 lastRouteResult?.let { showRouteInfoCard(it, liveRemainingMeters = remaining) }
+                // the always-on location overlay already shows where the citizen is —
+                // just keep the map centered on them while following a route.
                 binding.mapView.controller.animateTo(GeoPoint(loc.latitude, loc.longitude))
 
+                // "You have arrived" — like Google Maps, shown once per follow session
+                // when close enough to the destination, with a button to end the route.
                 if (!hasArrived && remaining <= ARRIVAL_THRESHOLD_METERS) {
                     hasArrived = true
                     showArrivalDialog()
@@ -543,6 +596,8 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Full "end navigation" reset — stops following, clears the drawn route and
+     *  A/B points, ready for a brand new route to be picked. */
     private fun finishRoute() {
         stopFollowing()
         routeLine?.let { binding.mapView.overlays.remove(it) }
@@ -555,10 +610,16 @@ class MainActivity : AppCompatActivity() {
         startPoint = null
         endPoint = null
         lastRouteResult = null
+        binding.btnCancelRoute.visibility = android.view.View.GONE
         binding.instructionsText.text = getString(R.string.instructions_pick_start)
         binding.mapView.invalidate()
     }
 
+    /** Remaining distance measured ALONG the route path, not a straight line to the
+     *  endpoint — finds the closest point on the route to where the citizen currently
+     *  is, then sums the route segments from there to the end. This guarantees
+     *  "remaining" can never exceed "total", unlike a naive haversine-to-endpoint
+     *  calculation (which can overshoot if GPS jumps off the path). */
     private fun remainingDistanceAlongRoute(currentLat: Double, currentLon: Double, route: RouteResult): Double {
         if (route.points.size < 2) return 0.0
         var nearestIndex = 0
@@ -604,7 +665,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 setOnMarkerClickListener { _, _ ->
                     showReportDetailDialog(report)
-                    true
+                    true // consume the tap — we show our own dialog instead of the default info window
                 }
             }
             reportMarkers.add(marker)
@@ -620,6 +681,7 @@ class MainActivity : AppCompatActivity() {
         return "\n${getString(R.string.last_verified_prefix)}: $formatted"
     }
 
+    /** Tapping a pin shows what was reported and lets neighbours confirm it's real (+10 points). */
     private fun showReportDetailDialog(report: AccessibilityReport) {
         val message = buildString {
             append(report.comment.ifBlank { "(нема коментар)" })
@@ -684,6 +746,9 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /** Shared detail dialog for reports and institutions — shows a synchronously-built
+     *  text message immediately, then asynchronously loads the photo (if any) into the
+     *  same dialog once it's downloaded, rather than blocking the dialog on the network. */
     private fun showDetailDialogWithPhoto(title: String, message: String, photoUrl: String?, onVerify: () -> Unit) {
         val view = layoutInflater.inflate(R.layout.dialog_detail, null)
         val imageView = view.findViewById<android.widget.ImageView>(R.id.imageDetail)
@@ -740,6 +805,9 @@ class MainActivity : AppCompatActivity() {
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 
+    /** Renders a drawable resource at an exact size (in dp) regardless of the source
+     *  image's native pixel dimensions — change [sizeDp] here any time you want the
+     *  marker icon bigger or smaller, no need to re-export or resize the image file. */
     private fun scaledMarkerIcon(resId: Int, sizeDp: Int): android.graphics.drawable.Drawable? {
         val original = ContextCompat.getDrawable(this, resId) ?: return null
         val sizePx = (sizeDp * resources.displayMetrics.density).toInt()
